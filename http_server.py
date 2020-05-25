@@ -1,3 +1,7 @@
+"""
+Assignment 3
+"""
+
 import socket
 import sys
 import traceback
@@ -57,7 +61,7 @@ def parse_request(request):
     NotImplementedError if the method of the request is not GET.
     """
 
-    method, path, version = request.split("\r\n")[0].split(" ")
+    method, path, _version = request.split("\r\n")[0].split(" ")
 
     if method != "GET":
         raise NotImplementedError
@@ -91,8 +95,7 @@ def response_path(path):
         response_path('/a_page_that_doesnt_exist.html') -> Raises a NameError
 
     """
-
-    pth = pathlib.Path('.').resolve() / 'webroot' / path[1:]
+    pth = pathlib.Path('.').resolve() / 'webroot' / path.lstrip('/')
 
     # Path does not map to a real location
     if not pth.exists():
@@ -101,30 +104,25 @@ def response_path(path):
     # Path is a directory
     if pth.is_dir():
         mime_type = b"text/plain"
-        content = ", ".join([f.name for f in pth.iterdir()]).encode('utf-8')
+        content = "\n".join([file.name for file in pth.iterdir()]).encode('utf8')
 
     # Path is a file
-    elif pth.is_file():
-        mime_type = mimetypes.guess_type(pth)[0].encode('utf-8')
-        with open(pth, mode='rb') as f:
-            content = f.read()
-
     else:
-        raise NameError
+        mime_type = mimetypes.guess_type(pth)[0].encode('utf8')
+        with open(pth, 'rb') as file:
+            content = file.read()
 
-    # TODO: Fill in the appropriate content and mime_type give the path.
-    # See the assignment guidelines for help on "mapping mime-types", though
-    # you might need to create a special case for handling make_time.py
-    #
     # If the path is "make_time.py", then you may OPTIONALLY return the
     # result of executing `make_time.py`. But you need only return the
     # CONTENTS of `make_time.py`.
-    
 
     return content, mime_type
 
 
 def server(log_buffer=sys.stderr):
+    """
+    Server
+    """
     address = ('127.0.0.1', 10000)
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -138,21 +136,22 @@ def server(log_buffer=sys.stderr):
             conn, addr = sock.accept()  # blocking
             try:
                 print('connection - {0}:{1}'.format(*addr), file=log_buffer)
-
                 request = ''
+
                 while True:
                     data = conn.recv(1024)
                     request += data.decode('utf8')
 
                     if '\r\n\r\n' in request:
                         break
-		
-
                 print("Request received:\n{}\n\n".format(request))
-
                 try:
                     path = parse_request(request)
 
+                except NotImplementedError:
+                    response = response_method_not_allowed()
+
+                else:
                     try:
                         content, mimetype = response_path(path)
 
@@ -162,24 +161,21 @@ def server(log_buffer=sys.stderr):
                     else:
                         response = response_ok(content, mimetype)
 
-                except NotImplementedError:
-                    response = response_method_not_allowed()
-
                 conn.sendall(response)
+
             except:
                 traceback.print_exc()
+
             finally:
-                conn.close() 
+                conn.close()
 
     except KeyboardInterrupt:
         sock.close()
         return
+
     except:
         traceback.print_exc()
-
 
 if __name__ == '__main__':
     server()
     sys.exit(0)
-
-
